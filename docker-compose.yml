@@ -1,0 +1,62 @@
+services:
+  db:
+    container_name: 4cat_db
+    image: postgres:${POSTGRES_TAG}
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST_AUTH_METHOD=${POSTGRES_HOST_AUTH_METHOD}
+    volumes:
+      - 4cat_db:/var/lib/postgresql/data/
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: digitalmethodsinitiative/4cat:${DOCKER_TAG}
+    container_name: 4cat_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - ${PUBLIC_API_PORT}:4444
+    volumes:
+      - 4cat_data:/usr/src/app/data/
+      - 4cat_config:/usr/src/app/config/
+      - 4cat_logs:/usr/src/app/logs/
+    entrypoint: docker/docker-entrypoint.sh
+
+  frontend:
+    image: digitalmethodsinitiative/4cat:${DOCKER_TAG}
+    container_name: 4cat_frontend
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - backend
+    ports:
+      - ${PUBLIC_PORT}:5000
+      - ${TELEGRAM_PORT}:443
+    volumes:
+      - 4cat_data:/usr/src/app/data/
+      - 4cat_config:/usr/src/app/config/
+      - 4cat_logs:/usr/src/app/logs/
+    command: ["docker/wait-for-backend.sh"]
+
+volumes:
+  4cat_db:
+    name: ${DOCKER_DB_VOL}
+  4cat_data:
+    name: ${DOCKER_DATA_VOL}
+  4cat_config:
+    name: ${DOCKER_CONFIG_VOL}
+  4cat_logs:
+    name: ${DOCKER_LOGS_VOL}
